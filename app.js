@@ -2,11 +2,9 @@ var WavesAPI = require('./waves-api');
 const Waves = WavesAPI.create(WavesAPI.MAINNET_CONFIG);
 
 const Telegraf = require('telegraf');
-const Composer = require('telegraf/composer');
 const session = require('telegraf/session');
 const Stage = require('telegraf/stage');
 const Markup = require('telegraf/markup');
-const WizardScene = require('telegraf/scenes/wizard');
 const Scene = require('telegraf/scenes/base');
 const { enter, leave } = Stage;
 
@@ -15,29 +13,6 @@ const CONFIG = {
 	database_url: '',
 	admin_id: ''
 };
-
-const bot = new Telegraf(CONFIG.bot_token);
-
-const mongoose = require('mongoose');
-mongoose.connect(CONFIG.database_url, {
-	useNewUrlParser: true
-});
-let db = mongoose.connection;
-db.on('error', function() {
-    console.log('Error connection to MongoDB');
-});
-db.once('open', function() {
-    console.log('Successfuly connection to MongoDB');
-});
-
-let users_schema = mongoose.Schema({
-    telegram_id: { type: Number, required: true },
-    waves_address: { type: String, required: true },
-    waves_phrase: { type: String, required: true },
-    bot_lang: { type: String, required: true },
-});
-
-let Users = mongoose.model('Users', users_schema);
 
 function parseBotDataText (data) {
 	if (data.message !== undefined) {
@@ -73,6 +48,128 @@ function default_response (ctx, text, isMarkdown) {
 	}
 }
 
+const sendMoneyScene = new Scene('send_money');
+sendMoneyScene.enter((ctx, next) => {
+	new Promise (function(resolve, reject) {
+		let botDataFrom = parseBotDataFrom(ctx);
+		Users.find({telegram_id: botDataFrom.id})
+		.exec()
+		.then(mongo_result => {
+			Waves.API.Node.addresses.balance(mongo_result[0].waves_address).then((waves_result) => {
+				if (waves_result.balance === 0) {
+					ctx.scene.leave();
+					return default_response(ctx, `You have no money on your wallet`, false);
+				} else {
+					return ctx.replyWithMarkdown('Enter the recipients address and the amount of WAVES in the format *address:number*', Markup.keyboard([
+						['Cancel']
+						]).oneTime().resize().extra());
+				}
+			});
+		})
+		.catch(mongo_error => {
+			bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+			return default_response(ctx, `Bot error`, false);
+		});	
+	})
+	.catch ((error) => {
+        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+		return default_response(ctx, `Bot error`, false);
+    });
+});
+
+sendMoneyScene.hears('Cancel', (ctx, next) => {
+	ctx.scene.leave();
+	return default_response(ctx, `Cancel`, false);
+});
+
+sendMoneyScene.on('message', (ctx, next) => {
+	new Promise (function(resolve, reject) {
+		let botDataText = parseBotDataText(ctx);
+		let botDataFrom = parseBotDataFrom(ctx);
+
+		let address = botDataText.split(':')[0];
+		let amount = botDataText.split(':')[1];
+		if (address === undefined || amount === undefined) {
+			return ctx.reply('Incorrect format');
+		} else if (isNaN(amount)) {
+			return ctx.reply('Enter number amount');
+		}
+
+		Waves.API.Node.addresses.balance(address).then((balance) => {
+			Users.find({telegram_id: botDataFrom.id})
+			.exec()
+			.then(mongo_result => {
+				Waves.API.Node.addresses.balance(mongo_result[0].waves_address).then((waves_result) => {
+
+					if (address === mongo_result[0].waves_address) {
+						return ctx.reply('You can not send money to yourself');
+					}
+					amount = Number(amount*100000000);
+					let waves_balance = waves_result.balance;
+					waves_balance = Number(waves_balance)+Number(0.001);
+
+					if (amount>waves_balance) {
+						return ctx.reply('Insufficient funds');
+					} else {
+						const seed = Waves.Seed.fromExistingPhrase(mongo_result[0].waves_phrase);
+
+						const transferData = {
+							recipient: address,
+							assetId: 'WAVES',
+							amount: amount,
+							feeAssetId: 'WAVES',
+							fee: 100000,
+							attachment: '',
+							timestamp: Date.now()
+						};
+
+						Waves.API.Node.transactions.broadcast('transfer', transferData, seed.keyPair).then((responseData) => {
+							ctx.scene.leave();
+							return default_response(ctx, `Successfully sent!`, false);
+						});
+					}
+				});
+			})
+			.catch(mongo_error => {
+				bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+				return default_response(ctx, `Bot error`, false);
+			});	  
+		}).catch(error => {
+			return ctx.reply('Invalid address');
+		})
+	})
+	.catch ((error) => {
+        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+		return default_response(ctx, `Bot error`, false);
+    });
+});
+
+const bot = new Telegraf(CONFIG.bot_token);
+const stage = new Stage([sendMoneyScene], { ttl: 10 })
+bot.use(session())
+bot.use(stage.middleware())
+
+const mongoose = require('mongoose');
+mongoose.connect(CONFIG.database_url, {
+	useNewUrlParser: true
+});
+let db = mongoose.connection;
+db.on('error', function() {
+    console.log('Error connection to MongoDB');
+});
+db.once('open', function() {
+    console.log('Successfuly connection to MongoDB');
+});
+
+let users_schema = mongoose.Schema({
+    telegram_id: { type: Number, required: true },
+    waves_address: { type: String, required: true },
+    waves_phrase: { type: String, required: true },
+    bot_lang: { type: String, required: true },
+});
+
+let Users = mongoose.model('Users', users_schema);
+
 bot.start((ctx) => {
 	new Promise (function(resolve, reject) {
 		let botDataFrom = parseBotDataFrom(ctx);
@@ -85,7 +182,7 @@ bot.start((ctx) => {
 					Markup.callbackButton('🇷🇺 Русский', 'select_rus_lang')
 					]).extra());
 			} else {
-				return default_response(ctx, `Бот не понял тебя`, false);
+				return default_response(ctx, `Bot did not understand you`, false);
 			}
 		})
 		.catch(mongo_error => {
@@ -111,8 +208,6 @@ bot.action('select_eng_lang', (ctx, next) => {
 			telegram_id: Number(botDataFrom.id),
 			waves_address: seed.address,
 		    waves_phrase: seed.phrase,
-		    waves_privatekey: seed.keyPair.privateKey,
-		    waves_publickey: seed.keyPair.publicKey,
 		    bot_lang: 'en'
 		});
 		newUser
@@ -143,8 +238,6 @@ bot.action('select_rus_lang', (ctx, next) => {
 			telegram_id: Number(botDataFrom.id),
 			waves_address: seed.address,
 		    waves_phrase: seed.phrase,
-		    waves_privatekey: seed.keyPair.privateKey,
-		    waves_publickey: seed.keyPair.publicKey,
 		    bot_lang: 'ru'
 		});
 		newUser
@@ -165,7 +258,7 @@ bot.action('select_rus_lang', (ctx, next) => {
 
 bot.hears('Send', (ctx, next) => {
 	new Promise (function(resolve, reject) {
-		return default_response(ctx, `This page is currently unavailable`, false);
+		return ctx.scene.enter('send_money');
 	})
 	.catch ((error) => {
         bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
@@ -260,7 +353,7 @@ bot.on('text', (ctx, next) => {
 					Markup.callbackButton('🇷🇺 Русский', 'select_rus_lang')
 					]).extra());
 			} else {
-				return default_response(ctx, `Бот не понял тебя`, false);
+				return default_response(ctx, `Bot did not understand you`, false);
 			}
 		})
 		.catch(mongo_error => {
