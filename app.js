@@ -48,6 +48,80 @@ function default_response (ctx, text, isMarkdown) {
 	}
 }
 
+const sendMoneyAmountScene = new Scene('send_money_amount');
+sendMoneyAmountScene.enter((ctx, next) => {
+	new Promise (function(resolve, reject) {
+		return ctx.reply('Enter amount');
+	})
+	.catch ((error) => {
+        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+		return default_response(ctx, `Bot error`, false);
+    });
+});
+
+sendMoneyAmountScene.on('message', (ctx, next) => {
+	new Promise (function(resolve, reject) {
+		let botDataText = parseBotDataText(ctx);
+		let botDataFrom = parseBotDataFrom(ctx);
+
+		let amount = botDataText;
+		let address = ctx.session.recipients_address;
+
+		if (isNaN(amount)) {
+			return ctx.reply('Enter number amount');
+		}
+
+		Waves.API.Node.addresses.balance(address).then((balance) => {
+			Users.find({telegram_id: botDataFrom.id})
+			.exec()
+			.then(mongo_result => {
+				Waves.API.Node.addresses.balance(mongo_result[0].waves_address).then((waves_result) => {
+					amount = Number(amount*100000000);
+					let waves_balance = waves_result.balance;
+					waves_balance = Number(waves_balance)+Number(0.001);
+
+					if (amount>waves_balance) {
+						return ctx.reply('Insufficient funds');
+					} 
+
+					const seed = Waves.Seed.fromExistingPhrase(mongo_result[0].waves_phrase);
+
+					const transferData = {
+						recipient: address,
+						assetId: 'WAVES',
+						amount: amount,
+						feeAssetId: 'WAVES',
+						fee: 100000,
+						attachment: '',
+						timestamp: Date.now()
+					};
+
+					Waves.API.Node.transactions.broadcast('transfer', transferData, seed.keyPair).then((responseData) => {
+						ctx.scene.leave();
+						return default_response(ctx, `Successfully sent!`, false);
+					});
+				});
+			})
+			.catch(mongo_error => {
+				bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+				return default_response(ctx, `Bot error`, false);
+			});	  
+		}).catch(error => {
+			return ctx.reply('Invalid address');
+		})
+	})
+	.catch ((error) => {
+        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+		return default_response(ctx, `Bot error`, false);
+    });
+});
+
+sendMoneyAmountScene.hears('Cancel', (ctx, next) => {
+	ctx.scene.leave();
+	return default_response(ctx, `Cancel`, false);
+});
+
+
 const sendMoneyScene = new Scene('send_money');
 sendMoneyScene.enter((ctx, next) => {
 	new Promise (function(resolve, reject) {
@@ -60,7 +134,7 @@ sendMoneyScene.enter((ctx, next) => {
 					ctx.scene.leave();
 					return default_response(ctx, `You have no money on your wallet`, false);
 				} else {
-					return ctx.replyWithMarkdown('Enter the recipients address and the amount of WAVES in the format *address:number*', Markup.keyboard([
+					return ctx.replyWithMarkdown('Enter the recipients address', Markup.keyboard([
 						['Cancel']
 						]).oneTime().resize().extra());
 				}
@@ -87,47 +161,19 @@ sendMoneyScene.on('message', (ctx, next) => {
 		let botDataText = parseBotDataText(ctx);
 		let botDataFrom = parseBotDataFrom(ctx);
 
-		let address = botDataText.split(':')[0];
-		let amount = botDataText.split(':')[1];
-		if (address === undefined || amount === undefined) {
-			return ctx.reply('Incorrect format');
-		} else if (isNaN(amount)) {
-			return ctx.reply('Enter number amount');
-		}
+		let address = botDataText;
 
 		Waves.API.Node.addresses.balance(address).then((balance) => {
 			Users.find({telegram_id: botDataFrom.id})
 			.exec()
 			.then(mongo_result => {
 				Waves.API.Node.addresses.balance(mongo_result[0].waves_address).then((waves_result) => {
-
 					if (address === mongo_result[0].waves_address) {
 						return ctx.reply('You can not send money to yourself');
 					}
-					amount = Number(amount*100000000);
-					let waves_balance = waves_result.balance;
-					waves_balance = Number(waves_balance)+Number(0.001);
-
-					if (amount>waves_balance) {
-						return ctx.reply('Insufficient funds');
-					} else {
-						const seed = Waves.Seed.fromExistingPhrase(mongo_result[0].waves_phrase);
-
-						const transferData = {
-							recipient: address,
-							assetId: 'WAVES',
-							amount: amount,
-							feeAssetId: 'WAVES',
-							fee: 100000,
-							attachment: '',
-							timestamp: Date.now()
-						};
-
-						Waves.API.Node.transactions.broadcast('transfer', transferData, seed.keyPair).then((responseData) => {
-							ctx.scene.leave();
-							return default_response(ctx, `Successfully sent!`, false);
-						});
-					}
+					ctx.scene.leave();
+					ctx.session.recipients_address = address;
+					return ctx.scene.enter('send_money_amount');
 				});
 			})
 			.catch(mongo_error => {
@@ -145,7 +191,7 @@ sendMoneyScene.on('message', (ctx, next) => {
 });
 
 const bot = new Telegraf(CONFIG.bot_token);
-const stage = new Stage([sendMoneyScene], { ttl: 10 })
+const stage = new Stage([sendMoneyScene, sendMoneyAmountScene], { ttl: 10 })
 bot.use(session())
 bot.use(stage.middleware())
 
@@ -213,7 +259,7 @@ bot.action('select_eng_lang', (ctx, next) => {
 		newUser
 		.save()
 		.then(mongo_create_new_user => {
-			return default_response(ctx, `Welcome!`, false);
+			return default_response(ctx, `Bot has generated your wallet`, false);
 		})
 		.catch(mongo_error => {
 			bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR WHEN CREATED NEW USER!');
@@ -293,10 +339,9 @@ bot.hears('Wallet', (ctx, next) => {
 		.then(mongo_result => {
 			Waves.API.Node.addresses.balance(mongo_result[0].waves_address).then((waves_result) => {
 				let waves_balance = Number(waves_result.balance/100000000);
-				return default_response(ctx, `*${waves_balance} WAVES*`, true);
-				// return ctx.replyWithMarkdown(`*${waves_balance} WAVES*`, Markup.inlineKeyboard([
-				// 	Markup.callbackButton('Show tokens amount', 'show_tokens'),
-				// 	]).extra())
+				return ctx.replyWithMarkdown(`*${waves_balance} WAVES*`, Markup.inlineKeyboard([
+					Markup.callbackButton('Transactions history', 'transactions_history'),
+					]).extra())
 			});
 		})
 		.catch(mongo_error => {
@@ -312,7 +357,10 @@ bot.hears('Wallet', (ctx, next) => {
 
 bot.hears('Settings', (ctx, next) => {
 	new Promise (function(resolve, reject) {
-		return default_response(ctx, `This page is currently unavailable`, false);
+		return ctx.reply('Settings', Markup.keyboard([
+			['Export seed phrase', 'Change language'],
+			['Cancel']
+			]).oneTime().resize().extra());
 	})
 	.catch ((error) => {
         bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
@@ -320,26 +368,15 @@ bot.hears('Settings', (ctx, next) => {
     });
 });
 
-// bot.action('show_tokens', (ctx, next) => {
-// 	new Promise (function(resolve, reject) {
-// 		let botDataFrom = parseBotDataFrom(ctx);
-// 		Users.find({telegram_id: botDataFrom.id})
-// 		.exec()
-// 		.then(mongo_result => {
-// 			Waves.API.Node.assets.balances(mongo_result[0].waves_address).then((waves_result) => {
-// 				return default_response(ctx, `There are *${waves_result.balances.length} tokens* on your wallet`, true);
-// 			});
-// 		})
-// 		.catch(mongo_error => {
-// 			bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
-// 			return default_response(ctx, `Bot error`, false);
-// 		});	
-// 	})
-// 	.catch ((error) => {
-//         bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
-// 		return default_response(ctx, `Bot error`, false);
-//     });
-// });
+bot.action('transactions_history', (ctx, next) => {
+	new Promise (function(resolve, reject) {
+		return default_response(ctx, `Coming soon...`, false);
+	})
+	.catch ((error) => {
+        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+		return default_response(ctx, `Bot error`, false);
+    });
+});
 
 bot.on('text', (ctx, next) => {
 	new Promise (function(resolve, reject) {
