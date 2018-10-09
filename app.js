@@ -368,6 +368,45 @@ bot.hears('Settings', (ctx, next) => {
     });
 });
 
+bot.hears('Export seed phrase', (ctx, next) => {
+	new Promise (function(resolve, reject) {
+		let botDataFrom = parseBotDataFrom(ctx);
+		Users.find({telegram_id: botDataFrom.id})
+		.exec()
+		.then(mongo_result => {
+			return default_response(ctx, `Mnemonic phrase - *${mongo_result[0].waves_phrase}*\n\n*Save and delete this message*`, true);
+		})
+		.catch(mongo_error => {
+			bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+			return default_response(ctx, `Bot error`, false);
+		});	
+	})
+	.catch ((error) => {
+        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+		return default_response(ctx, `Bot error`, false);
+    });
+});
+
+bot.hears('Change language', (ctx, next) => {
+	new Promise (function(resolve, reject) {
+		return default_response(ctx, `Comign soon...`, false);
+	})
+	.catch ((error) => {
+        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+		return default_response(ctx, `Bot error`, false);
+    });
+});
+
+bot.hears('Cancel', (ctx, next) => {
+	new Promise (function(resolve, reject) {
+		return default_response(ctx, `Cancel`, false);
+	})
+	.catch ((error) => {
+        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+		return default_response(ctx, `Bot error`, false);
+    });
+});
+
 bot.action('transactions_history', (ctx, next) => {
 	new Promise (function(resolve, reject) {
 		return default_response(ctx, `Coming soon...`, false);
