@@ -64,6 +64,11 @@ sendMoneyAmountScene.on('message', (ctx, next) => {
 		let botDataText = parseBotDataText(ctx);
 		let botDataFrom = parseBotDataFrom(ctx);
 
+		if (botDataText === 'Cancel') {
+			ctx.scene.leave();
+			return default_response(ctx, `Cancel`, false);
+		}
+
 		let amount = botDataText;
 		let address = ctx.session.recipients_address;
 
@@ -98,6 +103,7 @@ sendMoneyAmountScene.on('message', (ctx, next) => {
 
 					Waves.API.Node.transactions.broadcast('transfer', transferData, seed.keyPair).then((responseData) => {
 						ctx.scene.leave();
+						ctx.session.recipients_address = null;
 						return default_response(ctx, `Successfully sent!`, false);
 					});
 				});
@@ -115,12 +121,6 @@ sendMoneyAmountScene.on('message', (ctx, next) => {
 		return default_response(ctx, `Bot error`, false);
     });
 });
-
-sendMoneyAmountScene.hears('Cancel', (ctx, next) => {
-	ctx.scene.leave();
-	return default_response(ctx, `Cancel`, false);
-});
-
 
 const sendMoneyScene = new Scene('send_money');
 sendMoneyScene.enter((ctx, next) => {
@@ -191,7 +191,7 @@ sendMoneyScene.on('message', (ctx, next) => {
 });
 
 const bot = new Telegraf(CONFIG.bot_token);
-const stage = new Stage([sendMoneyScene, sendMoneyAmountScene], { ttl: 10 })
+const stage = new Stage([sendMoneyScene, sendMoneyAmountScene])
 bot.use(session())
 bot.use(stage.middleware())
 
@@ -375,6 +375,29 @@ bot.hears('Export seed phrase', (ctx, next) => {
 		.exec()
 		.then(mongo_result => {
 			return default_response(ctx, `Mnemonic phrase - *${mongo_result[0].waves_phrase}*\n\n*Save and delete this message*`, true);
+		})
+		.catch(mongo_error => {
+			bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+			return default_response(ctx, `Bot error`, false);
+		});	
+	})
+	.catch ((error) => {
+        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+		return default_response(ctx, `Bot error`, false);
+    });
+});
+
+bot.command('users_amount', (ctx, next) => {
+	new Promise (function(resolve, reject) {
+		let botDataFrom = parseBotDataFrom(ctx);
+		if (botDataFrom.id !== CONFIG.admin_id) {
+			return false;
+		}
+
+		Users.find()
+		.exec()
+		.then(mongo_result => {
+			return default_response(ctx, `Users amount - *${mongo_result.length}*`, true);
 		})
 		.catch(mongo_error => {
 			bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
