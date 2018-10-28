@@ -97,7 +97,7 @@ sendMoneyAmountScene.on('message', (ctx, next) => {
 						amount: amount,
 						feeAssetId: 'WAVES',
 						fee: 100000,
-						attachment: '',
+						attachment: 'Waves bot - https://t.me/waves_wallet_bot',
 						timestamp: Date.now()
 					};
 
@@ -225,7 +225,6 @@ bot.start((ctx) => {
 			if (mongo_result.length === 0) {
 				return ctx.reply('Welcome! Please shoose language', Markup.inlineKeyboard([
 					Markup.callbackButton('🇺🇸 English', 'select_eng_lang'),
-					Markup.callbackButton('🇷🇺 Русский', 'select_rus_lang')
 					]).extra());
 			} else {
 				return default_response(ctx, `Bot did not understand you`, false);
@@ -260,36 +259,6 @@ bot.action('select_eng_lang', (ctx, next) => {
 		.save()
 		.then(mongo_create_new_user => {
 			return default_response(ctx, `Bot has generated your wallet`, false);
-		})
-		.catch(mongo_error => {
-			bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR WHEN CREATED NEW USER!');
-			return default_response(ctx, `Bot error`, false);
-		});
-	})
-	.catch ((error) => {
-        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
-		return default_response(ctx, `Bot error`, false);
-    });
-});
-
-bot.action('select_rus_lang', (ctx, next) => {
-	new Promise (function(resolve, reject) {
-		ctx.reply('Выбран русский язык');
-
-		let botDataFrom = parseBotDataFrom(ctx);
-		const seed = Waves.Seed.create();
-
-		const newUser = new Users({
-			_id: new mongoose.Types.ObjectId(),
-			telegram_id: Number(botDataFrom.id),
-			waves_address: seed.address,
-		    waves_phrase: seed.phrase,
-		    bot_lang: 'ru'
-		});
-		newUser
-		.save()
-		.then(mongo_create_new_user => {
-			return default_response(ctx, `Добро пожаловать!`, false);
 		})
 		.catch(mongo_error => {
 			bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR WHEN CREATED NEW USER!');
@@ -358,8 +327,7 @@ bot.hears('Wallet', (ctx, next) => {
 bot.hears('Settings', (ctx, next) => {
 	new Promise (function(resolve, reject) {
 		return ctx.reply('Settings', Markup.keyboard([
-			['Export seed phrase', 'Change language'],
-			['Cancel']
+			['Export seed phrase', 'Cancel'],
 			]).oneTime().resize().extra());
 	})
 	.catch ((error) => {
@@ -410,16 +378,6 @@ bot.command('users_amount', (ctx, next) => {
     });
 });
 
-bot.hears('Change language', (ctx, next) => {
-	new Promise (function(resolve, reject) {
-		return default_response(ctx, `Comign soon...`, false);
-	})
-	.catch ((error) => {
-        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
-		return default_response(ctx, `Bot error`, false);
-    });
-});
-
 bot.hears('Cancel', (ctx, next) => {
 	new Promise (function(resolve, reject) {
 		return default_response(ctx, `Cancel`, false);
@@ -449,7 +407,6 @@ bot.on('text', (ctx, next) => {
 			if (mongo_result.length === 0) {
 				return ctx.reply('Welcome! Please shoose language', Markup.inlineKeyboard([
 					Markup.callbackButton('🇺🇸 English', 'select_eng_lang'),
-					Markup.callbackButton('🇷🇺 Русский', 'select_rus_lang')
 					]).extra());
 			} else {
 				return default_response(ctx, `Bot did not understand you`, false);
