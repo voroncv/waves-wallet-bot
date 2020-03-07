@@ -1,18 +1,18 @@
 var WavesAPI = require('./waves-api');
 const Waves = WavesAPI.create(WavesAPI.MAINNET_CONFIG);
+require('dotenv').config()
 
 const Telegraf = require('telegraf');
 const session = require('telegraf/session');
 const Stage = require('telegraf/stage');
 const Markup = require('telegraf/markup');
 const Scene = require('telegraf/scenes/base');
-const { enter, leave } = Stage;
 
-const CONFIG = {
-	bot_token: '',
-	database_url: '',
-	admin_id: ''
-};
+const {
+	BOT_TOKEN,
+	DATABASE_URI,
+	ADMIN_ID,
+} = process.env
 
 function parseBotDataText (data) {
 	if (data.message !== undefined) {
@@ -54,7 +54,7 @@ sendMoneyAmountScene.enter((ctx, next) => {
 		return ctx.reply('Enter amount');
 	})
 	.catch ((error) => {
-        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+        bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 		return default_response(ctx, `Bot error`, false);
     });
 });
@@ -109,7 +109,7 @@ sendMoneyAmountScene.on('message', (ctx, next) => {
 				});
 			})
 			.catch(mongo_error => {
-				bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+				bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 				return default_response(ctx, `Bot error`, false);
 			});	  
 		}).catch(error => {
@@ -117,7 +117,7 @@ sendMoneyAmountScene.on('message', (ctx, next) => {
 		})
 	})
 	.catch ((error) => {
-        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+        bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 		return default_response(ctx, `Bot error`, false);
     });
 });
@@ -141,12 +141,12 @@ sendMoneyScene.enter((ctx, next) => {
 			});
 		})
 		.catch(mongo_error => {
-			bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+			bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 			return default_response(ctx, `Bot error`, false);
 		});	
 	})
 	.catch ((error) => {
-        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+        bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 		return default_response(ctx, `Bot error`, false);
     });
 });
@@ -177,7 +177,7 @@ sendMoneyScene.on('message', (ctx, next) => {
 				});
 			})
 			.catch(mongo_error => {
-				bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+				bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 				return default_response(ctx, `Bot error`, false);
 			});	  
 		}).catch(error => {
@@ -185,18 +185,18 @@ sendMoneyScene.on('message', (ctx, next) => {
 		})
 	})
 	.catch ((error) => {
-        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+        bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 		return default_response(ctx, `Bot error`, false);
     });
 });
 
-const bot = new Telegraf(CONFIG.bot_token);
+const bot = new Telegraf(BOT_TOKEN);
 const stage = new Stage([sendMoneyScene, sendMoneyAmountScene])
 bot.use(session())
 bot.use(stage.middleware())
 
 const mongoose = require('mongoose');
-mongoose.connect(CONFIG.database_url, {
+mongoose.connect(DATABASE_URI {
 	useNewUrlParser: true
 });
 let db = mongoose.connection;
@@ -231,12 +231,12 @@ bot.start((ctx) => {
 			}
 		})
 		.catch(mongo_error => {
-			bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+			bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 			return default_response(ctx, `Bot error`, false);
 		});
 	})
 	.catch ((error) => {
-        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+        bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 		return default_response(ctx, `Bot error`, false);
     });
 });
@@ -261,12 +261,12 @@ bot.action('select_eng_lang', (ctx, next) => {
 			return default_response(ctx, `Bot has generated your wallet`, false);
 		})
 		.catch(mongo_error => {
-			bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR WHEN CREATED NEW USER!');
+			bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR WHEN CREATED NEW USER!');
 			return default_response(ctx, `Bot error`, false);
 		});
 	})
 	.catch ((error) => {
-        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+        bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 		return default_response(ctx, `Bot error`, false);
     });
 });
@@ -276,7 +276,7 @@ bot.hears('Send', (ctx, next) => {
 		return ctx.scene.enter('send_money');
 	})
 	.catch ((error) => {
-        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+        bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 		return default_response(ctx, `Bot error`, false);
     });
 });
@@ -290,12 +290,12 @@ bot.hears('Receive', (ctx, next) => {
 			return default_response(ctx, `*${mongo_result[0].waves_address}*`, true);
 		})
 		.catch(mongo_error => {
-			bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+			bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 			return default_response(ctx, `Bot error`, false);
 		});	
 	})
 	.catch ((error) => {
-        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+        bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 		return default_response(ctx, `Bot error`, false);
     });
 });
@@ -314,12 +314,12 @@ bot.hears('Wallet', (ctx, next) => {
 			});
 		})
 		.catch(mongo_error => {
-			bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+			bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 			return default_response(ctx, `Bot error`, false);
 		});	
 	})
 	.catch ((error) => {
-        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+        bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 		return default_response(ctx, `Bot error`, false);
     });
 });
@@ -331,7 +331,7 @@ bot.hears('Settings', (ctx, next) => {
 			]).oneTime().resize().extra());
 	})
 	.catch ((error) => {
-        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+        bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 		return default_response(ctx, `Bot error`, false);
     });
 });
@@ -345,12 +345,12 @@ bot.hears('Export seed phrase', (ctx, next) => {
 			return default_response(ctx, `Mnemonic phrase - *${mongo_result[0].waves_phrase}*\n\n*Save and delete this message*`, true);
 		})
 		.catch(mongo_error => {
-			bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+			bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 			return default_response(ctx, `Bot error`, false);
 		});	
 	})
 	.catch ((error) => {
-        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+        bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 		return default_response(ctx, `Bot error`, false);
     });
 });
@@ -358,7 +358,7 @@ bot.hears('Export seed phrase', (ctx, next) => {
 bot.command('users_amount', (ctx, next) => {
 	new Promise (function(resolve, reject) {
 		let botDataFrom = parseBotDataFrom(ctx);
-		if (botDataFrom.id !== CONFIG.admin_id) {
+		if (botDataFrom.id !== ADMIN_ID) {
 			return false;
 		}
 
@@ -368,12 +368,12 @@ bot.command('users_amount', (ctx, next) => {
 			return default_response(ctx, `Users amount - *${mongo_result.length}*`, true);
 		})
 		.catch(mongo_error => {
-			bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+			bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 			return default_response(ctx, `Bot error`, false);
 		});	
 	})
 	.catch ((error) => {
-        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+        bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 		return default_response(ctx, `Bot error`, false);
     });
 });
@@ -383,7 +383,7 @@ bot.hears('Cancel', (ctx, next) => {
 		return default_response(ctx, `Cancel`, false);
 	})
 	.catch ((error) => {
-        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+        bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 		return default_response(ctx, `Bot error`, false);
     });
 });
@@ -393,7 +393,7 @@ bot.action('transactions_history', (ctx, next) => {
 		return default_response(ctx, `Coming soon...`, false);
 	})
 	.catch ((error) => {
-        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+        bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 		return default_response(ctx, `Bot error`, false);
     });
 });
@@ -413,12 +413,12 @@ bot.on('text', (ctx, next) => {
 			}
 		})
 		.catch(mongo_error => {
-			bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+			bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 			return default_response(ctx, `Bot error`, false);
 		});
 	})
 	.catch ((error) => {
-        bot.telegram.sendMessage(CONFIG.admin_id, 'BOT ERROR!');
+        bot.telegram.sendMessage(ADMIN_ID, 'BOT ERROR!');
 		return default_response(ctx, `Bot error`, false);
     });
 });

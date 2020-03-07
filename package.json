@@ -10,6 +10,7 @@
   "dependencies": {
     "@waves/waves-api": "1.4",
     "crypto": "^1.0.1",
+    "dotenv": "^8.2.0",
     "mongoose": "5.2.15",
     "telegraf": "^3.24.0"
   }
